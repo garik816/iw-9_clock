@@ -1,204 +1,113 @@
-#include <avr/io.h>
-#include <util/delay.h>
-#include <util/twi.h>
+#include <Arduino.h>
+#include <LiquidCrystal_I2C.h>
+#include <SoftwareSerial.h>
+// #include <wire.h> //i2c
 
-#define srClk PB0 // serial clock
-#define srDataIn PB1	//serial data-in
-#define rClk0 PC0 // register clock rank 0
-#define rClk1 PC1 // register clock rank 1
-#define rClk2 PC2 // register clock rank 2
-#define rClk3 PC3 // register clock rank 3
+#define srClk 13 // serial clock
+#define srDataIn 12	//serial data-in
+#define rClk0 8 // register clock rank 0
+#define rClk1 9 // register clock rank 1
+#define rClk2 10 // register clock rank 2
+#define rClk3 11 // register clock rank 3
 
-#define delayTime 2
+#define IV9_B 0b00000001
+#define IV9_C 0b00000010
+#define IV9_A 0b00000100
+#define IV9_F	0b00001000
+#define IV9_G	0b00010000
+#define IV9_D	0b00100000
+#define IV9_E	0b01000000
+#define IV9_DP	0b10000000
 
-uint8_t digits[] = {
-		0b11111101,	//0b00111111, //"0" //запись в обратном порядке
-		0b01100000,	//0b00000110, //"1"
-		0b11011010,	//0b01011011, //"2"
-		0b11110010,	//0b01001111, //"3"
-		0b01100110,	//0b01100110, //"4"
-		0b10110110,	//0b01101101, //"5"
-		0b10111111,	//0b01111101, //"6"
-		0b11100000,	//0b00000111, //"7"
-		0b11111110,	//0b01111111, //"8"
-		0b11110110	//0b01101111  //"9"
-	};
+#define IV9_0 IV9_A+IV9_B+IV9_C+IV9_D+IV9_E+IV9_F
+#define IV9_1 IV9_B+IV9_C
+#define IV9_2 IV9_A+IV9_B+IV9_G+IV9_E+IV9_D
+#define IV9_3 IV9_A+IV9_B+IV9_G+IV9_C+IV9_D
+#define IV9_4 IV9_F+IV9_B+IV9_G+IV9_C
+#define IV9_5 IV9_A+IV9_F+IV9_G+IV9_C+IV9_D
+#define IV9_6 IV9_A+IV9_F+IV9_G+IV9_C+IV9_D+IV9_E
+#define IV9_7 IV9_A+IV9_B+IV9_C
+#define IV9_8 IV9_A+IV9_B+IV9_C+IV9_D+IV9_E+IV9_F+IV9_G
+#define IV9_9 IV9_A+IV9_B+IV9_C+IV9_D+IV9_F+IV9_G
 
+byte line0[] = {B00000,B00000,B00000,B00000,B00000,B00000,B00000,B00000};
+byte line1[] = {B00000,B00000,B00000,B00000,B00000,B00000,B00000,B11111};
+byte line2[] = {B00000,B00000,B00000,B00000,B00000,B00000,B11111,B11111};
+byte line3[] = {B00000,B00000,B00000,B00000,B00000,B11111,B11111,B11111};
+byte line4[] = {B00000,B00000,B00000,B00000,B11111,B11111,B11111,B11111};
+byte line5[] = {B00000,B00000,B00000,B11111,B11111,B11111,B11111,B11111};
+byte line6[] = {B00000,B00000,B11111,B11111,B11111,B11111,B11111,B11111};
+byte line7[] = {B00000,B11111,B11111,B11111,B11111,B11111,B11111,B11111};
+byte line8[] = {B11111,B11111,B11111,B11111,B11111,B11111,B11111,B11111};
 
-// Функция инициализация шины TWI
-void I2CInit(void)
-{
-	TWBR = 2; // Настройка частоты шины
-	TWSR = (1 << TWPS1)|(1 << TWPS0); // Предделитель на 64
-	TWCR |= (1 << TWEN); // Включение модуля TWI
+uint8_t digits[] = {IV9_0, IV9_1, IV9_2, IV9_3, IV9_4, IV9_5, IV9_6, IV9_7, IV9_8, IV9_9};
+
+static unsigned long timer = millis();
+
+LiquidCrystal_I2C lcd(0x27,16,2);
+
+void blink(void){
+  if (millis() - timer > 500) {
+    timer = millis();
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  }
 }
 
-// Функция СТАРТ
-void I2CStart(void)
-{
-	TWCR = (1 << TWINT)|(1 << TWEN)|(1 << TWSTA); // Передача условия СТАРТ
-	while(!(TWCR & (1 << TWINT))); // Ожидание установки флага TWINT
+void createCharacters(){
+  lcd.createChar(1, line1);
+  lcd.createChar(2, line2);
+  lcd.createChar(3, line3);
+  lcd.createChar(4, line4);
+  lcd.createChar(5, line5);
+  lcd.createChar(6, line6);
+  lcd.createChar(7, line7);
+  lcd.createChar(8, line8);
 }
 
-// Функция СТОП
-void I2CStop(void)
-{
-	TWCR = (1 << TWINT)|(1 << TWEN)|(1 << TWSTO); // Передача условия СТОП
-	while(TWCR & (1 << TWSTO)); // Ожидание завершения передачи условия СТОП
+void putChar(void){
+  for(int k=1;k>=0;k--){
+    for(int j=0;j<16;j++){
+      for(int i=1;i<9;i++){
+        lcd.setCursor(j,k);
+        lcd.write(i);
+        delay(25);
+      }
+    }
+  }
+  for(int k=0;k<2;k++){
+    for(int j=15;j>=0;j--){
+      for(int i=8;i>=1;i--){
+        lcd.setCursor(j,k);
+        lcd.write(i);
+        delay(25);
+      }
+      lcd.setCursor(j,k);
+      lcd.print(" ");
+    }
+  }
 }
 
-// Функция записи данных по шине
-uint8_t I2CWriteByte(uint8_t data)
-{
-	TWDR = data; // Загрузка данных в TWDR
-	TWCR = (1 << TWEN)|(1 << TWINT); // Сброс флага TWINT для начала передачи данных
-	while(!(TWCR & (1 << TWINT))); // Ожидание установки флага TWINT
-	// Проверка статуса
-	// Если адрес DS1307+R и принято "подтверждение"(0x18)
-	// или адрес DS1307+W и принято "подтверждение"(0x40)
-	// или передается байт данных и принято "подтверждение"(0x28)
-		if((TWSR & 0xF8) == 0x18 || (TWSR & 0xF8) == 0x40 || (TWSR & 0xF8) == 0x28) return 1; // OK
-	else return 0; // ОШИБКА
-}
-
-// Функция чтения данных по шине
-uint8_t I2CReadByte(uint8_t *data,uint8_t ack)
-{
-	// Возвращаем "подтверждение" после приема
-	if(ack) TWCR |= (1 << TWEA);
-	// Возвращаем "неподтверждение" после приема
-	// Ведомое устройство не получает больше данных
-	// обычно используется для распознования последнего байта
-	else TWCR &= ~(1 << TWEA);
-	// Разрешение приема данных после сброса TWINT
-	TWCR |= (1 << TWINT);
-	while(!(TWCR & (1 << TWINT))); // Ожидание установки флага TWINT
-	// Проверка статуса
-	// Если принят байт данных и возвращается "подтверждение"(0x50)
-	// или принят байт данных и возвращается "ненеподтверждение"(0x58)
-	if((TWSR & 0xF8) == 0x50 || (TWSR & 0xF8) == 0x58)
-	{
-		*data = TWDR; // Читаем данные из TWDR
-		return 1; // OK
-	}
-	else return 0; // ОШИБКА
-}
-
-// Функция чтения данных из DS1307
-uint8_t DS1307Read(uint8_t address,uint8_t *data)
-{
-	uint8_t res;
-	I2CStart(); // СТАРТ
-	res = I2CWriteByte(0b11010000); // адрес DS1307+W
-	if(!res)    return 0; // ОШИБКА
-		// Передача адреса необходимого регистра
-		res = I2CWriteByte(address);
-	if(!res)    return 0; // ОШИБКА
-		I2CStart(); // Повторный СТАРТ
-		res = I2CWriteByte(0b11010001); // адрес DS1307+R
-	if(!res)    return 0; // ОШИБКА
-		// Чтение данных с "неподтверждением"
-		res = I2CReadByte(data,0);
-	if(!res)    return 0; // ОШИБКА
-		I2CStop(); // СТОП
-	return 1; // OK
-}
-
-// Функция записи данных в DS1307
-uint8_t DS1307Write(uint8_t address,uint8_t data)
-{
-	uint8_t res;
-	I2CStart(); // СТАРТ
-	res = I2CWriteByte(0b11010000); // адрес DS1307+W
-	if(!res)    return 0; // ОШИБКА
-		// Передача адреса необходимого регистра
-		res = I2CWriteByte(address);
-	if(!res)    return 0; // ОШИБКА
-		res = I2CWriteByte(data); // Запись данных
-	if(!res)    return 0; // ОШИБКА
-		I2CStop(); // СТОП
-	return 1; // OK
-}
-
-// Функции работы с LCD
-#define RS PD0
-#define EN PD2
-// Функция передачи команды
-void lcd_com(unsigned char p)
-{
-	PORTD &= ~(1 << RS); // RS = 0 (запись команд)
-	PORTD |= (1 << EN); // EN = 1 (начало записи команды в LCD)
-	PORTD &= 0x0F; PORTD |= (p & 0xF0); // старший нибл
-	_delay_us(100);
-	PORTD &= ~(1 << EN); // EN = 0 (конец записи команды в LCD)
-	_delay_us(100);
-	PORTD |= (1 << EN); // EN = 1 (начало записи команды в LCD)
-	PORTD &= 0x0F; PORTD |= (p << 4); // младший нибл
-	_delay_us(100);
-	PORTD &= ~(1 << EN); // EN = 0 (конец записи команды в LCD)
-	_delay_us(100);
-}
-// Функция передачи данных
-void lcd_data(unsigned char p)
-{
-	PORTD |= (1 << RS)|(1 << EN); // RS = 1 (запись данных), EN - 1 (начало записи команды в LCD)
-	PORTD &= 0x0F; PORTD |= (p & 0xF0); // старший нибл
-	_delay_us(100);
-	PORTD &= ~(1 << EN); // EN = 0 (конец записи команды в LCD)
-	_delay_us(100);
-	PORTD |= (1 << EN); // EN = 1 (начало записи команды в LCD)
-	PORTD &= 0x0F; PORTD |= (p << 4); // младший нибл
-	_delay_us(100);
-	PORTD &= ~(1 << EN); // EN = 0 (конец записи команды в LCD)
-	_delay_us(100);
-}
-
-// Функция вывода строки на LCD
-void lcd_string(unsigned char command, char *string)
-{
-	lcd_com(0x0C);
-	lcd_com(command);
-	while(*string != '\0')
-	{	lcd_data(*string);
-		string++;
-	}
-}
-
-// Функция вывода переменной
-void lcd_num_to_str(unsigned int value, unsigned char nDigit)
-{
- switch(nDigit)
- {
-  case 4: lcd_data((value/1000)+'0');
-  case 3: lcd_data(((value/100)%10)+'0');
-  case 2: lcd_data(((value/10)%10)+'0');
-  case 1: lcd_data((value%10)+'0');
- }
-}
-
-// Функция инициализации LCD
-void lcd_init(void)
-{
-	PORTD = 0x00;
-	DDRD = 0xFF;
-
-	_delay_ms(50); // Ожидание готовности ЖК-модуля
-
-	// Конфигурирование четырехразрядного режима
-	PORTD |= (1 << PD5);
-	PORTD &= ~(1 << PD4);
-
-	// Активизация четырехразрядного режима
-	PORTD |= (1 << EN);
-	PORTD &= ~(1 << EN);
-	_delay_ms(5);
-
-	lcd_com(0x28); // шина 4 бит, LCD - 2 строки
-	lcd_com(0x08); // полное выключение дисплея
-	lcd_com(0x01); // очистка дисплея
-	_delay_us(100);
-	lcd_com(0x06); // сдвиг курсора вправо
-	lcd_com(0x0C); // включение дисплея, курсор не видим
+void putCharUP(void){
+  for(int j=0;j<16;j++){
+    for(int k=1;k>=0;k--){
+      for(int i=1;i<9;i++){
+        lcd.setCursor(j,k);
+        lcd.write(i);
+        delay(25);
+      }
+    }
+  }
+  for(int j=15;j>=0;j--){
+    for(int k=0;k<2;k++){
+      for(int i=8;i>=1;i--){
+        lcd.setCursor(j,k);
+        lcd.write(i);
+        delay(25);
+      }
+      lcd.setCursor(j,k);
+      lcd.print(" ");
+    }
+  }
 }
 
 void output7seg(uint8_t digit, uint8_t rank) {
@@ -220,98 +129,74 @@ void output7seg(uint8_t digit, uint8_t rank) {
 	PORTC |= (1 << rank);
 }
 
-int main(void) {
+void out(void){
+  for (int i = 0; i < 10; i++) {
+		    for(int j=0;j<16;j++){
+		      for(int i=1;i<9;i++){
+		        lcd.setCursor(j,0);
+		        lcd.write(i);
+		        delay(2);
+		      }
+		    }
+		    for(int j=15;j>=0;j--){
+		      for(int i=8;i>=1;i--){
+		        lcd.setCursor(j,0);
+		        lcd.write(i);
+		        delay(2);
+		      }
+		      lcd.setCursor(j,0);
+		      lcd.print(" ");
+		    }
+		lcd.setCursor(0,1);
+		lcd.print(i);
+    digitalWrite(rClk0, LOW);
+    shiftOut(srDataIn, srClk, MSBFIRST, digits[i]);
+    digitalWrite(rClk0, HIGH);
+  }
+}
 
-	DDRB |= ((1 << srDataIn) | (1 << srClk));
-	DDRC |= ((1 << rClk0) | (1 << rClk1) | (1 << rClk2) | (1 << rClk3));
-	DDRC &= (~((1<<PC4) | (1<<PC5)));
-	PORTB = 0xFF;
-	PORTC |= ((1 << PC4) | (1 << PC5));
+void counter(void){
+  for (int i=0; i<10; i++) {
+  	output7seg(digits[i],rClk0);
+  	for (int i=0; i<10; i++) {
+  		output7seg(digits[i],rClk1);
+  		for (int i=0; i<10; i++) {
+  			output7seg(digits[i],rClk2);
+  			for (int i=0; i<10; i++) {
+  				output7seg(digits[i],rClk3);
+  			}
+  		}
+  	}
+  }
+}
 
-	lcd_init(); // Инициализация LCD
-	I2CInit(); // Инициализация шины I2C
+void setup() {
+  Serial.begin(9600);
 
-	lcd_string(0x81, "clock DS1307"); // Часы на DS1307
-	lcd_string(0xC4, "  :  :  ");
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(srDataIn, OUTPUT);
+  pinMode(srClk, OUTPUT);
+  pinMode(rClk0, OUTPUT);
+  pinMode(rClk1, OUTPUT);
+  pinMode(rClk2, OUTPUT);
+  pinMode(rClk3, OUTPUT);
 
-	// Запускаем ход часов
-	uint8_t temp;
-	DS1307Read(0x00,&temp);
-	temp &= ~(1 << 7); // обнуляем 7 бит
-	DS1307Write(0x00,temp);
+	digitalWrite(rClk0, LOW);
+	shiftOut(srDataIn, srClk, MSBFIRST, 0);
+	digitalWrite(rClk0, HIGH);
 
-	while(1) {
+  lcd.init();
+  lcd.backlight();
+  createCharacters();
 
-//		//счёичик
-//		for (int i=0; i<10; i++) {
-//			output7seg(digits[i],rClk0);
-//			_delay_ms(delayTime);
-//			for (int i=0; i<10; i++) {
-//				output7seg(digits[i],rClk1);
-//				_delay_ms(delayTime);
-//				for (int i=0; i<10; i++) {
-//					output7seg(digits[i],rClk2);
-//					_delay_ms(delayTime);
-//					for (int i=0; i<10; i++) {
-//						output7seg(digits[i],rClk3);
-//						_delay_ms(delayTime);
-//					}
-//				}
-//			}
-//		}
-//		//end счётчик
+  lcd.clear();
+  Serial.println("start");
+}
 
+void loop() {
+  blink();
+  // putChar();
+  // putCharUP();
 
-		unsigned char hour, minute, second, temp;
-		// Читаем данные и преобразуем из BCD в двоичную систему
-		DS1307Read(0x00,&temp); // Чтение регистра секунд
-		second = (((temp & 0xF0) >> 4)*10)+(temp & 0x0F);
-		DS1307Read(0x01,&temp); // Чтение регистра минут
-		minute = (((temp & 0xF0) >> 4)*10)+(temp & 0x0F);
-		DS1307Read(0x02,&temp); // Чтение регистра часов
-		hour = (((temp & 0xF0) >> 4)*10)+(temp & 0x0F);
-
-		lcd_com(0xC4);
-		lcd_num_to_str(hour, 2); // Выводим на экран часы
-		lcd_com(0xC7);
-		lcd_num_to_str(minute, 2); // Выводим на экран минуты
-		lcd_com(0xCA);
-		lcd_num_to_str(second, 2); // Выводим на экран секунды
-
-//		case 4: lcd_data((value/1000)+'0');
-//		case 3: lcd_data(((value/100)%10)+'0');
-//		case 2: lcd_data(((value/10)%10)+'0');
-//		case 1: lcd_data((value%10)+'0');
-
-		output7seg(digits[hour/10%10],rClk3);
-		output7seg(digits[hour%10],rClk2);
-		output7seg(digits[minute/10%10],rClk1);
-		output7seg(digits[minute%10],rClk0);
-
-//		if((PINC & (1 << PC0)) == 0) // Если нажата кнопка
-//		{
-//			while((PINC & (1 << PC0)) == 0){} // Ждем отпускания кнопки
-//			hour++; // Увеличиваем часы на 1
-//			if(hour > 23) hour = 0;
-//			// Преобразуем из двоичной системы в BCD и записываем в DS1307
-//			uint8_t temp;
-//			temp = ((hour/10) << 4)|(hour%10);
-//			DS1307Write(0x02, temp);
-//			_delay_ms(100);
-//		}
-//
-//		if((PINC & (1 << PC1)) == 0) // Если нажата кнопка
-//		{
-//			while((PINC & (1 << PC1)) == 0){} // Ждем отпускания кнопки
-//			minute++; // Увеличиваем минуты на 1
-		if(minute > 59) minute = 0;{
-			// Преобразуем из двоичной системы в BCD и записываем в DS1307
-			uint8_t temp;
-			temp = ((minute/10) << 4)|(minute%10);
-			DS1307Write(0x01, temp);
-			_delay_ms(100);
-		}
-	}
-
-	return 0;
+  out();
 }
