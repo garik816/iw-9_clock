@@ -7,6 +7,8 @@
 #define rClk2 16 // register clock rank 2
 #define rClk3 17 // register clock rank 3
 #define LED_PIN 10 // DEBUG
+#define BUTTON_1_PIN 18 // DEBUG
+#define BUTTON_2_PIN 19 // DEBUG
 
 #define IV9_B 0b00000001
 #define IV9_C 0b00000010
@@ -29,10 +31,13 @@
 #define IV9_9 IV9_A+IV9_B+IV9_C+IV9_D+IV9_F+IV9_G
 
 uint8_t digits[] = {IV9_0, IV9_1, IV9_2, IV9_3, IV9_4, IV9_5, IV9_6, IV9_7, IV9_8, IV9_9};
-uint8_t sec, min, hour = 0;
+uint8_t sec = 0, min = 0, hour = 0;
+
+bool buttonFlag = false;
 
 static unsigned long timer = millis();
 static unsigned long oneSecondTimer = millis();
+static unsigned long buttonTimer = millis();
 
 void blink(void){
   if (millis() - timer > 1000) {
@@ -75,26 +80,39 @@ void Clock(void){
   putDigit((hour/10)%10, rClk0);
 
 }
-//
+
 // void counter(void){
-//   for (int i = 0; i < 10; i++) {
-//     putDigit(i, rClk0);
+//   for (int i = 0; i < 10000; i++) {
+//     putDigit(i%10, rClk3);
+//     putDigit((i/10)%10, rClk2);
+//     putDigit((i/100)%10, rClk1);
+//     putDigit((i/1000)%10, rClk0);
 //     delay(100);
-//     for (int i = 0; i < 10; i++) {
-//       putDigit(i, rClk1);
-//       delay(100);
-//       for (int i = 0; i < 10; i++) {
-//         putDigit(i, rClk2);
-//         delay(100);
-//         for (int i = 0; i < 10; i++) {
-//           putDigit(i, rClk3);
-//           delay(100);
-//         }
-//       }
-//     }
 //   }
 // }
 
+void detectButtons(void){
+
+  bool btn1State = !digitalRead(BUTTON_1_PIN);
+  bool btn2State = !digitalRead(BUTTON_2_PIN);
+
+  if (btn1State && !buttonFlag && millis() - buttonTimer > 100) {
+    buttonFlag = true;
+    buttonTimer = millis();
+    hour++;
+  }
+  if (btn2State && !buttonFlag && millis() - buttonTimer > 100) {
+    buttonFlag = true;
+    buttonTimer = millis();
+    min++;
+  }
+  if ((!btn1State || !btn2State) && buttonFlag && millis() - buttonTimer > 500) {
+  buttonFlag = false;
+  buttonTimer = millis();
+  //Serial.println("release");
+}
+
+}
 
 void setup() {
   pinMode(LED_PIN, OUTPUT);
@@ -104,6 +122,9 @@ void setup() {
   pinMode(rClk1, OUTPUT);
   pinMode(rClk2, OUTPUT);
   pinMode(rClk3, OUTPUT);
+
+  pinMode(BUTTON_1_PIN, INPUT);
+  pinMode(BUTTON_2_PIN, INPUT);
 
   digitalWrite(rClk0, LOW);
   digitalWrite(rClk1, LOW);
@@ -118,7 +139,7 @@ void setup() {
 
 void loop() {
   blink();
+  detectButtons();
   Clock();
   // counter();
 }
-
