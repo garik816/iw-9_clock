@@ -30,14 +30,21 @@
 #define IV9_8 IV9_A+IV9_B+IV9_C+IV9_D+IV9_E+IV9_F+IV9_G
 #define IV9_9 IV9_A+IV9_B+IV9_C+IV9_D+IV9_F+IV9_G
 
+#define IV9_eyeOpen IV9_A+IV9_B+IV9_C+IV9_D+IV9_E+IV9_F
+#define IV9_eyeBlink IV9_G
+
 uint8_t digits[] = {IV9_0, IV9_1, IV9_2, IV9_3, IV9_4, IV9_5, IV9_6, IV9_7, IV9_8, IV9_9};
 uint8_t sec = 0, min = 0, hour = 0;
 
 bool buttonFlag = false;
+bool animationFlag = true;
+bool clockFlag = false;
 
 static unsigned long timer = millis();
 static unsigned long oneSecondTimer = millis();
 static unsigned long buttonTimer = millis();
+
+
 
 void blink(void){
   if (millis() - timer > 1000) {
@@ -46,16 +53,59 @@ void blink(void){
   }
 }
 
+void face(void){
+  putEye(0,rClk0);
+  putEye(IV9_eyeBlink, rClk1);
+  putEye(IV9_eyeBlink, rClk2);
+  putEye(0,rClk3);
+  
+  delay(500);
+  putEye(0,rClk0);
+  putEye(IV9_eyeOpen, rClk1);
+  putEye(IV9_eyeOpen, rClk2);
+  putEye(0,rClk3);
+  delay(500);
+
+  putEye(0,rClk0);
+  putEye(IV9_eyeBlink, rClk1);
+  putEye(IV9_eyeBlink, rClk2);
+  putEye(0,rClk3);
+  delay(250);
+  putEye(0,rClk0);
+  putEye(IV9_eyeOpen, rClk1);
+  putEye(IV9_eyeOpen, rClk2);
+  putEye(0,rClk3);
+  delay(250);
+  putEye(0,rClk0);
+  putEye(IV9_eyeBlink, rClk1);
+  putEye(IV9_eyeBlink, rClk2);
+  putEye(0,rClk3);
+  delay(250);
+  putEye(0,rClk0);
+  putEye(IV9_eyeOpen, rClk1);
+  putEye(IV9_eyeOpen, rClk2);
+  putEye(0,rClk3);
+  delay(3000);
+
+  animationFlag = false;
+  clockFlag = true;
+}
+
+
+void putEye(uint8_t figure, uint8_t row){
+  digitalWrite(row, LOW);
+  shiftOut(srDataIn, srClk, MSBFIRST, figure);
+  digitalWrite(row, HIGH);
+}
+
 void putDigit(uint8_t digit, uint8_t row){
   digitalWrite(row, LOW);
   shiftOut(srDataIn, srClk, MSBFIRST, digits[digit]);
   digitalWrite(row, HIGH);
 }
 
-
-
 void Clock(void){
-  if (millis() - oneSecondTimer > 2000) {
+  if (millis() - oneSecondTimer > 1000) {
     oneSecondTimer = millis();
     sec++;
   }
@@ -68,45 +118,46 @@ void Clock(void){
   if (min == 60){
     min = 0;
     hour++;
+    clockFlag=false;
+    animationFlag=true;
   }
 
   if (hour == 24){
     hour = 0;
   }
-
+  
   putDigit(min%10, rClk3);
   putDigit((min/10)%10, rClk2);
   putDigit(hour%10, rClk1);
   putDigit((hour/10)%10, rClk0);
-
 }
 
-// void counter(void){
-//   for (int i = 0; i < 10000; i++) {
-//     putDigit(i%10, rClk3);
-//     putDigit((i/10)%10, rClk2);
-//     putDigit((i/100)%10, rClk1);
-//     putDigit((i/1000)%10, rClk0);
-//     delay(100);
-//   }
-// }
+ void counter(void){
+   for (int i = 0; i < 10000; i++) {
+     putDigit(i%10, rClk3);
+     putDigit((i/10)%10, rClk2);
+     putDigit((i/100)%10, rClk1);
+     putDigit((i/1000)%10, rClk0);
+     delay(100);
+   }
+ }
 
 void detectButtons(void){
 
   bool btn1State = !digitalRead(BUTTON_1_PIN);
   bool btn2State = !digitalRead(BUTTON_2_PIN);
 
-  if (btn1State && !buttonFlag && millis() - buttonTimer > 100) {
+  if (btn1State && !buttonFlag && millis() - buttonTimer > 50) {
     buttonFlag = true;
     buttonTimer = millis();
     hour++;
   }
-  if (btn2State && !buttonFlag && millis() - buttonTimer > 100) {
+  if (btn2State && !buttonFlag && millis() - buttonTimer > 50) {
     buttonFlag = true;
     buttonTimer = millis();
     min++;
   }
-  if ((!btn1State || !btn2State) && buttonFlag && millis() - buttonTimer > 500) {
+  if ((!btn1State || !btn2State) && buttonFlag && millis() - buttonTimer > 200) {
   buttonFlag = false;
   buttonTimer = millis();
   //Serial.println("release");
@@ -139,7 +190,13 @@ void setup() {
 
 void loop() {
   blink();
+  //  counter();
   detectButtons();
-  Clock();
-  // counter();
+  if (!animationFlag && clockFlag) {
+    Clock();
+  }
+  if (animationFlag && !clockFlag) {
+    face();
+  }
 }
+
